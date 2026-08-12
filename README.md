@@ -1,5 +1,8 @@
 # GrievancePath — Smart Grievance Routing System
 
+> **Source code:** https://github.com/Hufaidkhan369/grievance-path
+> After you deploy (below), your public URL will be `https://grievance-path.onrender.com`.
+
 Built for **Smart India Hackathon**. Citizens describe their problem in plain
 language; the system **analyses it and automatically routes the grievance to the
 correct government department** — the citizen never has to know which department
@@ -23,10 +26,10 @@ so on. Our system removes that burden:
 
 | Route | Page | Purpose |
 |---|---|---|
-| `/` | Citizen portal | Lodge complaint (with **live department prediction** as you type) + track status by ID |
-| `/department` | Department dashboard | Sign in as any department, see assigned complaints, update status/priority, leave notes |
-| `/admin` | Admin panel | Overview stats, manage/reassign any complaint, notification log |
-| `/analytics` | Analytics | Charts: by department, status donut, 14-day trend, priority mix, routing method |
+| `/` | Citizen portal | Lodge complaint (with **live department prediction** as you type), citizen accounts, manual-mode routing, track with status stepper + SLA + rate-it feedback |
+| `/department` | Department dashboard | Sign in as any department, per-department queue with SLA/overdue flags, update status/priority, leave notes |
+| `/admin` | Admin panel | Everything in one place: complaints, users, feedback, notifications, retrain the model, manually route any complaint |
+| `/analytics` | Analytics | Charts: by department, status donut, 14-day trend, priority mix, routing method, users, ratings |
 | `/docs` | Swagger | Auto-generated API docs |
 
 Demo logins: admin password `admin123` · any department password `dept123`
@@ -37,12 +40,15 @@ Demo logins: admin password `admin123` · any department password `dept123`
 1. **Keyword classifier** — 15 departments, each with weighted positive/negative
    keyword lists (e.g. `power cut +5`, `street light −1` for the Electricity Board).
    Fully offline, deterministic and explainable.
-2. **ML layer** — a TF-IDF + Multinomial Naive-Bayes model (scikit-learn) is
-   trained at startup from the keyword tables, so *novel* phrasings still land in
-   the right department. Runs offline.
+2. **Trained ML model** — a TF-IDF + Multinomial Naive-Bayes model is trained
+   (`train_model.py`) on 1200+ generated samples from the keyword tables and real
+   seeded complaints, so *novel* phrasings still land in the right department.
+   Runs offline; retrain any time from the admin panel.
 3. **Optional LLM** — set `LLM_API_KEY` in `.env` and the engine cross-checks its
    decision with an LLM (`ROUTER_DEFAULT=hybrid`), falling back gracefully if the
    call fails.
+4. **Manual mode** — a citizen can always override and pick the department
+   themselves; admins can force-route any complaint (`routing_method = manual`).
 
 Every route stores its method, confidence and matched keywords on the complaint
 (`routing_method`, `department_confidence`, `matched_keywords`) so the whole
@@ -54,15 +60,33 @@ decision is auditable.
 |---|---|
 | `departments` | 15 departments (code, name, contact, colour) |
 | `keywords` | keyword → department routing weights |
-| `complaints` | grievances + routed department, confidence, status, priority |
+| `users` | citizen accounts (register/sign in, linked to complaints) |
+| `complaints` | grievances + routed department, confidence, status, priority, SLA |
+| `department_complaints` | **per-department queue** — each department's own list with SLA due date |
 | `status_history` | full audit trail of every status change |
 | `notifications` | SMS/email log (simulated out-of-the-box) |
+| `feedback` | citizen ratings (★ 1–5) + comments per complaint |
 | `llm_feedback` | LLM vs classifier agreement logging |
 
 Schema is auto-created and seeded on first run with **20 realistic demo
-complaints** so the analytics pages are instantly impressive.
+complaints**, sample users and feedback so every page is instantly impressive.
 
-## Run it
+## Deploy to the web (public URL) — 2 minutes
+
+The repo is ready at **https://github.com/Hufaidkhan369/grievance-path** with a
+Render blueprint (`render.yaml`). To get a permanent public URL on the free tier:
+
+1. Create a free account at **https://render.com** (sign in with GitHub).
+2. In the Render dashboard click **New → Blueprint**.
+3. Choose the `grievance-path` repository.
+4. Click **Apply** — Render reads `render.yaml` and builds/deploys automatically.
+5. Your public URL will be **https://grievance-path.onrender.com** (shown in the
+   dashboard once deployed). It's live worldwide within ~2 minutes.
+
+> Note: the free tier uses an ephemeral disk, so the SQLite demo data resets on
+> redeploys. Perfect for demos; switch `database.py` to PostgreSQL for permanent data.
+
+## Run it locally
 
 ```powershell
 # from this folder (grievance-system)
@@ -76,6 +100,11 @@ Then open:
 - Department dashboard: http://localhost:8000/department (pick any department, password `dept123`)
 - Admin: http://localhost:8000/admin (password `admin123`)
 - API docs: http://localhost:8000/docs
+
+Optional: re-train the routing model:
+```powershell
+..\.venv\Scripts\python.exe train_model.py
+```
 
 ## Project layout
 
@@ -91,11 +120,15 @@ grievance-system/
 │   │   ├── llm.py             # optional OpenAI-compatible LLM router
 │   │   └── service.py         # orchestrator (classifier + ML + LLM)
 │   ├── services/
-│   │   ├── complaint.py       # create/track/update/notify
+│   │   ├── complaint.py       # create/track/update/notify + per-dept queue
+│   │   ├── users.py           # citizen register/login
 │   │   ├── analytics.py       # analytics queries
-│   │   └── seed.py            # departments, keywords, demo complaints
+│   │   └── seed.py            # departments, keywords, demo data
 │   └── static/                # citizen portal, dept/admin/analytics pages
+├── models/routing_model.joblib  # trained TF-IDF + Naive-Bayes model
 ├── data/                      # grievances.db (auto-created)
+├── train_model.py             # trains & saves the routing model
+├── render.yaml                # Render.com blueprint (public deploy)
 ├── requirements.txt
 └── .env.example               # copy to .env and tweak
 ```
@@ -105,12 +138,15 @@ grievance-system/
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/api/analyze` | Preview the routing decision for text (used by live analysis) |
-| POST | `/api/complaints` | Submit a complaint → auto-routed |
-| GET  | `/api/complaints/track?tracking_id=GRV-2026-0001` | Track status + history |
+| POST | `/api/complaints` | Submit a complaint → auto-routed (or manual `manual_department_code`) |
+| GET  | `/api/complaints/track?tracking_id=GRV-2026-0001` | Track status + history + SLA |
+| POST | `/api/complaints/{id}/feedback` | Citizen rating + comment |
+| POST | `/api/auth/register` · `/api/auth/login` | Citizen accounts |
 | POST | `/api/login` | `role=admin` or `role=department&code=MCD` |
-| GET  | `/api/dept/complaints` | A department's assigned complaints |
+| GET  | `/api/dept/complaints` · `/api/dept/queue-stats` | A department's own queue + SLA stats |
 | POST | `/api/dept/complaints/{id}/update` | Update status/priority with a note |
-| GET  | `/api/admin/overview` · `/api/admin/complaints` · `/api/admin/notifications` | Admin data |
+| GET  | `/api/admin/overview` · `/users` · `/feedback` · `/notifications` | Admin sees everything |
+| POST | `/api/admin/train` · `/api/admin/complaints/{id}/manual-route` | Retrain model / force route |
 | GET  | `/api/analytics/*` | Departments, status, priority, trend, routing |
 
 ## Making it production-ready
