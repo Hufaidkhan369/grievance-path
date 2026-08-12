@@ -1,0 +1,24 @@
+# Render Blueprint — deploys GrievancePath as a free web service.
+# Create an account at https://render.com, connect your GitHub repo, and it
+# will build from this file automatically.
+services:
+  - type: web
+    name: grievance-path
+    runtime: python
+    plan: free
+    healthCheckPath: /health
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.0
+      - key: ROUTER_DEFAULT
+        value: classifier
+      - key: USE_ML
+        value: "true"
+      - key: ALERT_ENABLED
+        value: "true"
+      - key: ADMIN_PASSWORD
+        value: admin123
+      - key: DEPT_PASSWORD
+        value: dept123

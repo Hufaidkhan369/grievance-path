@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GrievancePath — Department Dashboard</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="logo"><span class="dot">&#9873;</span> GrievancePath <span class="pill" style="margin-left:4px">Department</span></div>
+  <div class="links">
+    <a href="/">Citizen Portal</a>
+    <a href="/analytics">Analytics</a>
+    <a href="/admin">Admin</a>
+    <a href="#" id="logoutBtn">Logout</a>
+  </div>
+</nav>
+
+<div class="wrap" id="loginWrap">
+  <div class="login-wrap">
+    <div class="card login-card">
+      <h2 class="section">&#128274; Department login</h2>
+      <p class="muted" style="font-size:.9rem">Demo password for all departments: <span class="mono">dept123</span></p>
+      <label>Department</label>
+      <select id="loginDept"></select>
+      <label>Password</label>
+      <input id="loginPass" type="password" placeholder="••••••••">
+      <div id="loginMsg" class="msg"></div>
+      <button class="btn" style="width:100%;margin-top:16px" id="loginBtn">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" id="dashWrap" style="display:none">
+  <div id="deptBanner" style="display:flex; gap:14px; align-items:center; margin-bottom:20px"></div>
+
+  <div class="grid cols-4" style="margin-bottom:20px">
+    <div class="card stat"><div class="num" id="stActive">–</div><div class="lbl">Active in queue</div></div>
+    <div class="card stat"><div class="num" id="stResolved">–</div><div class="lbl">Resolved</div></div>
+    <div class="card stat"><div class="num" id="stUrgent">–</div><div class="lbl">Urgent</div></div>
+    <div class="card stat"><div class="num" id="stOverdue">–</div><div class="lbl">Overdue SLA</div></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:14px">
+      <h2 class="section" style="margin-bottom:0">&#128203; Assigned complaints</h2>
+      <div style="margin-left:auto; display:flex; gap:8px">
+        <select id="filterStatus" style="width:auto">
+          <option value="">All statuses</option>
+          <option>PENDING</option><option>IN_PROGRESS</option>
+          <option>RESOLVED</option><option>REJECTED</option><option>CLOSED</option>
+        </select>
+        <select id="filterPriority" style="width:auto">
+          <option value="">All priorities</option>
+          <option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>URGENT</option>
+        </select>
+      </div>
+    </div>
+    <div id="deptMsg" class="msg"></div>
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Complaint</th><th>Priority</th><th>Status</th><th>SLA</th><th>Date</th><th></th></tr>
+        </thead>
+        <tbody id="complaintsBody"></tbody>
+      </table>
+      <div class="empty" id="emptyRow" style="display:none">No complaints match.</div>
+    </div>
+  </div>
+</div>
+
+<!-- detail modal -->
+<div class="modal-back" id="detailModal">
+  <div class="modal">
+    <h3>Complaint detail</h3>
+    <div id="detailBody"></div>
+    <div class="row cols-2" style="margin-top:16px">
+      <div>
+        <label>Change status</label>
+        <select id="editStatus">
+          <option value="">— keep —</option>
+          <option>IN_PROGRESS</option><option>RESOLVED</option>
+          <option>REJECTED</option><option>CLOSED</option>
+        </select>
+      </div>
+      <div>
+        <label>Priority</label>
+        <select id="editPriority">
+          <option value="">— keep —</option>
+          <option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>URGENT</option>
+        </select>
+      </div>
+    </div>
+    <label>Note for the citizen</label>
+    <textarea id="editNote" rows="2" placeholder="e.g. Field team visited, action in progress"></textarea>
+    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px">
+      <button class="btn ghost" onclick="document.getElementById('detailModal').classList.remove('show')">Close</button>
+      <button class="btn" id="saveUpdate">Save update</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/common.js"></script>
+<script>
+let dept = null;
+let currentComplaint = null;
+
+async function initLogin() {
+  const d = await api("/api/departments");
+  document.getElementById("loginDept").innerHTML = d.map(x =>
+    `<option value="${esc(x.code)}">${esc(x.name)}</option>`).join("");
+}
+
+document.getElementById("loginBtn").addEventListener("click", async () => {
+  const msg = document.getElementById("loginMsg");
+  try {
+    const r = await api("/api/login", { method: "POST", body: JSON.stringify({
+      role: "department",
+      code: document.getElementById("loginDept").value,
+      password: document.getElementById("loginPass").value,
+    })});
+    localStorage.setItem("gp_token", r.token);
+    localStorage.setItem("gp_role", "department");
+    localStorage.setItem("gp_dept", JSON.stringify(r.department));
+    showDash();
+  } catch (e) { showMsg(msg, e.message, "err"); }
+});
+
+document.getElementById("logoutBtn").addEventListener("click", () => logout());
+
+function showDash() {
+  const t = localStorage.getItem("gp_dept");
+  if (!t) return;
+  dept = JSON.parse(t);
+  document.getElementById("loginWrap").style.display = "none";
+  document.getElementById("dashWrap").style.display = "block";
+  const banner = document.getElementById("deptBanner");
+  banner.innerHTML = `
+    <span class="badge" style="background:${esc(dept.color)}; font-size:1.05rem; padding:9px 16px">🏛 ${esc(dept.name)}</span>
+    <div class="muted" style="font-size:.88rem">${esc(dept.description || "")}</div>`;
+  loadList();
+}
+
+async function loadList() {
+  const status = document.getElementById("filterStatus").value;
+  const priority = document.getElementById("filterPriority").value;
+  try {
+    const q = new URLSearchParams();
+    if (status) q.set("status", status);
+    if (priority) q.set("priority", priority);
+    const r = await api("/api/dept/complaints?" + q.toString());
+    renderList(r.complaints);
+  } catch (e) { showMsg(document.getElementById("deptMsg"), e.message, "err"); }
+}
+
+function renderList(list) {
+  const body = document.getElementById("complaintsBody");
+  document.getElementById("emptyRow").style.display = list.length ? "none" : "block";
+  body.innerHTML = list.map(c => {
+    let sla = '<span class="muted">—</span>';
+    if (c.sla_due_at) {
+      const due = new Date(c.sla_due_at);
+      const overdue = due < new Date() && ["PENDING", "IN_PROGRESS"].includes(c.status);
+      sla = overdue
+        ? `<span class="pill rejected">Overdue ${fmtDate(c.sla_due_at)}</span>`
+        : `<span class="muted" style="font-size:.8rem">${fmtDate(c.sla_due_at)}</span>`;
+    }
+    return `
+    <tr>
+      <td class="mono" style="white-space:nowrap">${esc(c.tracking_id)}</td>
+      <td>
+        <strong>${esc(c.title)}</strong>
+        <div class="muted" style="font-size:.8rem">${esc((c.location || "") + (c.city ? ", " + c.city : ""))}</div>
+        <div class="muted" style="font-size:.78rem">${esc(c.contact_name || "")} ${esc(c.contact_phone || "")}</div>
+      </td>
+      <td>${priorityPill(c.priority)}</td>
+      <td>${statusPill(c.status)}</td>
+      <td>${sla}</td>
+      <td style="white-space:nowrap">${fmtDate(c.created_at)}</td>
+      <td><button class="btn ghost small" data-id="${esc(c.id)}">View / update</button></td>
+    </tr>`;
+  }).join("");
+
+  body.querySelectorAll("button[data-id]").forEach(b => b.addEventListener("click", () => openDetail(b.dataset.id)));
+
+  const all = list;
+  document.getElementById("stActive").textContent = all.filter(c => ["PENDING","IN_PROGRESS"].includes(c.status)).length;
+  document.getElementById("stResolved").textContent = all.filter(c => ["RESOLVED","CLOSED"].includes(c.status)).length;
+  document.getElementById("stUrgent").textContent = all.filter(c => c.priority === "URGENT").length;
+  const now = new Date();
+  document.getElementById("stOverdue").textContent = all.filter(c =>
+    c.sla_due_at && new Date(c.sla_due_at) < now && ["PENDING","IN_PROGRESS"].includes(c.status)).length;
+  loadQueueStats();
+}
+
+async function loadQueueStats() {
+  try {
+    const r = await api("/api/dept/queue-stats");
+    const rows = r.rows || [];
+    if (rows.length) {
+      document.getElementById("stActive").textContent = rows.reduce((s, x) => s + x.active, 0);
+      document.getElementById("stOverdue").textContent = rows.reduce((s, x) => s + x.overdue, 0);
+    }
+  } catch (e) {}
+}
+
+async function openDetail(id) {
+  try {
+    const r = await api("/api/complaints/track?tracking_id=" + encodeURIComponent(id));
+    currentComplaint = r;
+    const tl = (r.history || []).map(h => `
+      <li><div class="t-dot"></div><div class="t-body">
+        <div class="t-status">${statusPill(h.status)}</div>
+        <div class="t-note">${esc(h.note)}</div>
+        <div class="t-time">${fmtDate(h.created_at)} by ${esc(h.changed_by)}</div>
+      </div></li>`).join("");
+    document.getElementById("detailBody").innerHTML = `
+      <div class="kv">
+        <span class="k">Tracking ID</span><span class="mono">${esc(r.tracking_id)}</span>
+        <span class="k">Citizen</span><span>${esc(r.contact_name || "—")} &middot; ${esc(r.contact_phone || "—")} &middot; ${esc(r.contact_email || "—")}</span>
+        <span class="k">Location</span><span>${esc(r.location || "—")}${r.city ? ", " + esc(r.city) : ""}</span>
+        <span class="k">Auto-routed</span><span>${esc(r.routing_method)} &middot; ${Math.round((r.confidence||0)*100)}% confidence</span>
+      </div>
+      <div style="margin-top:6px"><strong>${esc(r.title)}</strong></div>
+      <div class="muted" style="font-size:.9rem">${esc(r.description)}</div>
+      <ul class="timeline" style="margin-top:12px">${tl}</ul>`;
+    document.getElementById("editStatus").value = "";
+    document.getElementById("editPriority").value = "";
+    document.getElementById("editNote").value = "";
+    document.getElementById("detailModal").classList.add("show");
+  } catch (e) { alert(e.message); }
+}
+
+document.getElementById("saveUpdate").addEventListener("click", async () => {
+  if (!currentComplaint) return;
+  try {
+    await api("/api/dept/complaints/" + currentComplaint.tracking_id + "/update", {
+      method: "POST",
+      body: JSON.stringify({
+        status: document.getElementById("editStatus").value,
+        priority: document.getElementById("editPriority").value,
+        note: document.getElementById("editNote").value,
+      }),
+    });
+    document.getElementById("detailModal").classList.remove("show");
+    loadList();
+  } catch (e) { alert(e.message); }
+});
+
+document.getElementById("filterStatus").addEventListener("change", loadList);
+document.getElementById("filterPriority").addEventListener("change", loadList);
+
+initLogin();
+if (loggedIn()) showDash();
+</script>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GrievancePath — Admin</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="logo"><span class="dot">&#9873;</span> GrievancePath <span class="pill" style="margin-left:4px">Admin</span></div>
+  <div class="links">
+    <a href="/">Citizen Portal</a>
+    <a href="/department">Departments</a>
+    <a href="/analytics">Analytics</a>
+    <a href="#" id="logoutBtn">Logout</a>
+  </div>
+</nav>
+
+<div class="wrap" id="loginWrap">
+  <div class="login-wrap">
+    <div class="card login-card">
+      <h2 class="section">&#128274; Admin login</h2>
+      <p class="muted" style="font-size:.9rem">Demo admin password: <span class="mono">admin123</span></p>
+      <label>Password</label>
+      <input id="loginPass" type="password" placeholder="••••••••">
+      <div id="loginMsg" class="msg"></div>
+      <button class="btn" style="width:100%;margin-top:16px" id="loginBtn">Sign in</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap" id="dashWrap" style="display:none">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px">
+    <h2 class="section" style="margin-bottom:0">&#128736; Control center</h2>
+    <button class="btn ghost small" id="trainBtn" style="margin-left:auto">&#129302; Retrain routing model</button>
+    <span id="trainMsg" class="muted" style="font-size:.82rem"></span>
+  </div>
+
+  <div class="grid cols-5" style="margin-bottom:20px">
+    <div class="card stat"><div class="num" id="oTotal">–</div><div class="lbl">Complaints</div></div>
+    <div class="card stat"><div class="num" id="oActive">–</div><div class="lbl">Active</div></div>
+    <div class="card stat"><div class="num" id="oResolved">–</div><div class="lbl">Resolved</div></div>
+    <div class="card stat"><div class="num" id="oUsers">–</div><div class="lbl">Users</div></div>
+    <div class="card stat"><div class="num" id="oRate">–</div><div class="lbl">Resolution rate</div></div>
+  </div>
+
+  <div class="card">
+    <div class="tabs">
+      <button class="active" data-tab="complaints">Complaints</button>
+      <button data-tab="users">Users</button>
+      <button data-tab="feedback">Feedback</button>
+      <button data-tab="notifications">Notifications</button>
+    </div>
+
+    <!-- complaints -->
+    <div id="tab-complaints">
+      <div style="display:flex; gap:8px; margin-bottom:12px">
+        <select id="filterStatus" style="width:auto">
+          <option value="">All statuses</option>
+          <option>PENDING</option><option>IN_PROGRESS</option>
+          <option>RESOLVED</option><option>REJECTED</option><option>CLOSED</option>
+        </select>
+        <button class="btn ghost small" onclick="loadAll()">Refresh</button>
+      </div>
+      <div id="adminMsg" class="msg"></div>
+      <div class="tbl-scroll" style="max-height:560px; overflow-y:auto">
+        <table>
+          <thead><tr><th>ID</th><th>Dept</th><th>Complaint</th><th>Route</th><th>Prio</th><th>Status</th><th></th></tr></thead>
+          <tbody id="allBody"></tbody>
+        </table>
+        <div class="empty" id="emptyRow" style="display:none">No complaints.</div>
+      </div>
+    </div>
+
+    <!-- users -->
+    <div id="tab-users" style="display:none">
+      <div class="tbl-scroll" style="max-height:560px; overflow-y:auto">
+        <table>
+          <thead><tr><th>User</th><th>Email</th><th>Phone</th><th>City</th><th>Complaints</th><th>Joined</th></tr></thead>
+          <tbody id="usersBody"></tbody>
+        </table>
+        <div class="empty" id="emptyUsers" style="display:none">No registered users yet.</div>
+      </div>
+    </div>
+
+    <!-- feedback -->
+    <div id="tab-feedback" style="display:none">
+      <div class="grid cols-2" style="margin-bottom:12px">
+        <div class="card stat"><div class="num" id="fbCount">–</div><div class="lbl">Feedback received</div></div>
+        <div class="card stat"><div class="num" id="fbAvg">–</div><div class="lbl">Average rating</div></div>
+      </div>
+      <div class="tbl-scroll" style="max-height:560px; overflow-y:auto">
+        <table>
+          <thead><tr><th>Complaint</th><th>Rating</th><th>Comment</th><th>Time</th></tr></thead>
+          <tbody id="feedbackBody"></tbody>
+        </table>
+        <div class="empty" id="emptyFb" style="display:none">No feedback yet.</div>
+      </div>
+    </div>
+
+    <!-- notifications -->
+    <div id="tab-notifications" style="display:none">
+      <div class="tbl-scroll" style="max-height:560px; overflow-y:auto">
+        <table>
+          <thead><tr><th>Channel</th><th>Recipient</th><th>Subject</th><th>Time</th></tr></thead>
+          <tbody id="notifBody"></tbody>
+        </table>
+        <div class="empty" id="emptyNotif" style="display:none">No notifications yet.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- admin update modal -->
+<div class="modal-back" id="updModal">
+  <div class="modal">
+    <h3>Manage complaint <span id="updTracking" class="mono"></span></h3>
+    <div class="kv" id="updMeta"></div>
+    <div class="row cols-2">
+      <div>
+        <label>Status</label>
+        <select id="updStatus">
+          <option value="">— keep —</option>
+          <option>IN_PROGRESS</option><option>RESOLVED</option>
+          <option>REJECTED</option><option>CLOSED</option>
+        </select>
+      </div>
+      <div>
+        <label>Priority</label>
+        <select id="updPriority">
+          <option value="">— keep —</option>
+          <option>LOW</option><option>MEDIUM</option><option>HIGH</option><option>URGENT</option>
+        </select>
+      </div>
+    </div>
+    <label>Reassign / manually route to department</label>
+    <select id="updDept"></select>
+    <label>Admin note</label>
+    <textarea id="updNote" rows="2" placeholder="Optional note"></textarea>
+    <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:16px">
+      <button class="btn ghost" onclick="document.getElementById('updModal').classList.remove('show')">Close</button>
+      <button class="btn" id="saveUpd">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/common.js"></script>
+<script>
+let allComplaints = [];
+
+document.getElementById("loginBtn").addEventListener("click", async () => {
+  const msg = document.getElementById("loginMsg");
+  try {
+    const r = await api("/api/login", { method: "POST", body: JSON.stringify({
+      role: "admin", password: document.getElementById("loginPass").value })});
+    localStorage.setItem("gp_token", r.token);
+    localStorage.setItem("gp_role", "admin");
+    showDash();
+  } catch (e) { showMsg(msg, e.message, "err"); }
+});
+
+document.getElementById("logoutBtn").addEventListener("click", () => logout());
+
+async function showDash() {
+  document.getElementById("loginWrap").style.display = "none";
+  document.getElementById("dashWrap").style.display = "block";
+  loadOverview();
+  loadAll();
+  loadUsers();
+  loadFeedback();
+  loadNotifs();
+  const depts = await api("/api/departments");
+  document.getElementById("updDept").innerHTML =
+    `<option value="">— no change —</option>` + depts.map(d =>
+      `<option value="${esc(d.code)}">${esc(d.name)}</option>`).join("");
+}
+
+async function loadOverview() {
+  const o = await api("/api/analytics/overview");
+  document.getElementById("oTotal").textContent = o.total;
+  document.getElementById("oActive").textContent = o.pending;
+  document.getElementById("oResolved").textContent = o.resolved;
+  document.getElementById("oUsers").textContent = o.users;
+  document.getElementById("oRate").textContent = o.resolution_rate + "%";
+  document.getElementById("fbCount").textContent = o.feedback_count;
+  document.getElementById("fbAvg").textContent = o.feedback_count ? o.avg_rating + " ★" : "—";
+}
+
+async function loadAll() {
+  const status = document.getElementById("filterStatus").value;
+  const q = status ? "?status=" + encodeURIComponent(status) : "";
+  try {
+    const r = await api("/api/admin/complaints" + q);
+    allComplaints = r.complaints;
+    document.getElementById("emptyRow").style.display = r.complaints.length ? "none" : "block";
+    document.getElementById("allBody").innerHTML = r.complaints.map(c => `
+      <tr>
+        <td class="mono" style="white-space:nowrap">${esc(c.tracking_id)}</td>
+        <td><span class="badge" style="background:${esc(c.department_color || "#64748b")}">${esc(c.department_code || "?")}</span></td>
+        <td>
+          <strong>${esc(c.title)}</strong>
+          <div class="muted" style="font-size:.78rem">${esc(c.location || "")}${c.city ? ", " + esc(c.city) : ""}</div>
+        </td>
+        <td><span class="chip">${esc(c.routing_method)}</span><div class="muted" style="font-size:.75rem">${Math.round((c.department_confidence||0)*100)}% conf</div></td>
+        <td>${priorityPill(c.priority)}</td>
+        <td>${statusPill(c.status)}</td>
+        <td><button class="btn ghost small" data-id="${esc(c.id)}">Manage</button></td>
+      </tr>`).join("");
+    document.querySelectorAll("#allBody button[data-id]").forEach(b =>
+      b.addEventListener("click", () => openUpd(b.dataset.id)));
+  } catch (e) { showMsg(document.getElementById("adminMsg"), e.message, "err"); }
+}
+
+async function loadUsers() {
+  const r = await api("/api/admin/users");
+  document.getElementById("emptyUsers").style.display = r.users.length ? "none" : "block";
+  document.getElementById("usersBody").innerHTML = r.users.map(u => `
+    <tr>
+      <td><span class="avatar" style="margin-right:8px">${esc((u.full_name||"?").charAt(0).toUpperCase())}</span><strong>${esc(u.full_name)}</strong>
+        ${u.role === "admin" ? ' <span class="chip">admin</span>' : ""}</td>
+      <td>${esc(u.email || "—")}</td>
+      <td>${esc(u.phone || "—")}</td>
+      <td>${esc(u.city || "—")}</td>
+      <td>${u.complaints || 0}</td>
+      <td style="white-space:nowrap">${fmtDate(u.created_at)}</td>
+    </tr>`).join("");
+}
+
+async function loadFeedback() {
+  const r = await api("/api/admin/feedback");
+  document.getElementById("emptyFb").style.display = r.feedback.length ? "none" : "block";
+  document.getElementById("feedbackBody").innerHTML = r.feedback.map(f => `
+    <tr>
+      <td class="mono" style="white-space:nowrap">${esc(f.tracking_id)}</td>
+      <td style="color:#f59e0b;font-weight:700">${"★".repeat(f.rating)}${"☆".repeat(5 - f.rating)}</td>
+      <td>${esc(f.comment || "—")}</td>
+      <td style="white-space:nowrap;font-size:.8rem">${fmtDate(f.created_at)}</td>
+    </tr>`).join("");
+}
+
+async function loadNotifs() {
+  const r = await api("/api/admin/notifications");
+  document.getElementById("emptyNotif").style.display = r.notifications.length ? "none" : "block";
+  document.getElementById("notifBody").innerHTML = r.notifications.map(n => `
+    <tr>
+      <td>${n.channel === "EMAIL" ? "&#9993; Email" : "&#128241; SMS"}</td>
+      <td style="font-size:.8rem">${esc(n.recipient)}</td>
+      <td style="font-size:.8rem"><strong>${esc(n.subject)}</strong><div class="muted">${esc(n.message)}</div></td>
+      <td style="white-space:nowrap; font-size:.8rem">${fmtDate(n.created_at)}</td>
+    </tr>`).join("");
+}
+
+function openUpd(id) {
+  const c = allComplaints.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById("updTracking").textContent = c.tracking_id;
+  document.getElementById("updMeta").innerHTML = `
+    <span class="k">Department</span><span>${esc(c.department_name)} (${esc(c.department_code)})</span>
+    <span class="k">Title</span><span>${esc(c.title)}</span>`;
+  document.getElementById("updStatus").value = "";
+  document.getElementById("updPriority").value = "";
+  document.getElementById("updDept").value = "";
+  document.getElementById("updNote").value = "";
+  document.getElementById("updModal").classList.add("show");
+  document.getElementById("saveUpd").onclick = async () => {
+    try {
+      await api("/api/admin/complaints/" + id + "/update", {
+        method: "POST",
+        body: JSON.stringify({
+          status: document.getElementById("updStatus").value,
+          priority: document.getElementById("updPriority").value,
+          reassign_code: document.getElementById("updDept").value,
+          note: document.getElementById("updNote").value,
+        }),
+      });
+      document.getElementById("updModal").classList.remove("show");
+      loadOverview(); loadAll(); loadNotifs();
+    } catch (e) { alert(e.message); }
+  };
+}
+
+document.getElementById("filterStatus").addEventListener("change", loadAll);
+
+document.querySelectorAll(".tabs button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll(".tabs button").forEach(x => x.classList.remove("active"));
+  b.classList.add("active");
+  ["complaints", "users", "feedback", "notifications"].forEach(t =>
+    document.getElementById("tab-" + t).style.display = t === b.dataset.tab ? "block" : "none");
+  if (b.dataset.tab === "users") loadUsers();
+  if (b.dataset.tab === "feedback") loadFeedback();
+  if (b.dataset.tab === "notifications") loadNotifs();
+}));
+
+document.getElementById("trainBtn").addEventListener("click", async () => {
+  const btn = document.getElementById("trainBtn");
+  const msg = document.getElementById("trainMsg");
+  btn.disabled = true; btn.textContent = "Training…";
+  msg.textContent = "";
+  try {
+    const r = await api("/api/admin/train", { method: "POST" });
+    msg.textContent = "✅ Model retrained on " + r.samples + " samples.";
+  } catch (e) { msg.textContent = "❌ " + e.message; }
+  btn.disabled = false; btn.textContent = "Retrain routing model";
+});
+
+if (loggedIn()) showDash();
+</script>
+</body>
+</html>

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GrievancePath — Lodge a Complaint</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="logo"><span class="dot">&#9873;</span> GrievancePath</div>
+  <div class="links">
+    <a href="/" class="active">Lodge Complaint</a>
+    <a href="/analytics">Analytics</a>
+    <a href="/department">Department Login</a>
+    <a href="/admin">Admin</a>
+    <a href="#" id="authLink" style="display:none"></a>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="hero">
+    <h1>Speak up. We'll route it to the right department.</h1>
+    <p>Describe your problem in your own words — our trained AI model analyses it and sends your grievance straight to the correct government department. No forms to guess, no wrong turns.</p>
+    <div class="grid cols-3" style="max-width:720px;margin:22px auto 0;text-align:center">
+      <div class="card stat"><div class="num" id="heroTotal">…</div><div class="lbl">Complaints routed</div></div>
+      <div class="card stat"><div class="num" id="heroDepts">…</div><div class="lbl">Departments</div></div>
+      <div class="card stat"><div class="num" id="heroRating">…</div><div class="lbl">Avg citizen rating</div></div>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step"><div class="num">1</div><h3>Describe it in your words</h3>
+      <p>Type what happened and where. Our model reads it — no department names needed from you.</p></div>
+    <div class="step"><div class="num">2</div><h3>AI routes it automatically</h3>
+      <p>A trained ML model (cross-checked by keywords) picks the right department with a confidence score you can see live.</p></div>
+    <div class="step"><div class="num">3</div><h3>Track &amp; get updates</h3>
+      <p>Follow your complaint's status with your tracking ID and get SMS/email updates as it moves.</p></div>
+  </div>
+
+  <div class="grid cols-2" style="margin-top:10px">
+    <div class="card">
+      <h2 class="section">&#128221; Lodge your grievance</h2>
+
+      <div class="auth-strip" style="margin-bottom:6px">
+        <button class="btn ghost small" id="openAuth">&#128100; Sign in / create account (optional)</button>
+        <span class="who" id="whoAmI"></span>
+      </div>
+
+      <div class="row cols-2">
+        <div>
+          <label>Title (short summary) *</label>
+          <input id="title" placeholder="e.g. Street light not working on my lane" maxlength="200">
+        </div>
+        <div>
+          <label>Broad category (optional)</label>
+          <select id="category">
+            <option value="">Auto-detect (recommended)</option>
+            <option>Roads & Transport</option><option>Street Lights</option><option>Sanitation</option>
+            <option>Electricity</option><option>Water Supply</option><option>Police & Safety</option>
+            <option>Health</option><option>Education</option><option>Telecom</option>
+            <option>Environment</option><option>Agriculture</option><option>Revenue & Land</option>
+            <option>Consumer Rights</option><option>Food Supplies</option><option>Disaster Relief</option>
+          </select>
+        </div>
+      </div>
+
+      <label>Describe the problem *</label>
+      <textarea id="description" rows="5" placeholder="Explain what happened, where, and since when. e.g. The municipal garbage truck hasn't visited our colony for 10 days and the dustbins are overflowing..."></textarea>
+
+      <div class="analysis-box" id="analysisBox">
+        <div class="muted" style="font-size:.85rem">&#128269; Live analysis: start typing and we'll predict the department…</div>
+      </div>
+
+      <details style="margin-top:12px">
+        <summary class="muted" style="cursor:pointer;font-size:.88rem;font-weight:600">&#128279; Prefer to choose the department yourself? (manual mode)</summary>
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label>Manual department</label>
+            <select id="manualDept">
+              <option value="">— Auto route (recommended) —</option>
+            </select>
+          </div>
+          <div><label>Why are you choosing manually? (optional)</label>
+            <input id="manualReason" placeholder="e.g. I was told to approach this department directly"></div>
+        </div>
+      </details>
+
+      <div class="row cols-3">
+        <div><label>Your name</label><input id="name" placeholder="Full name"></div>
+        <div><label>Mobile (for SMS updates)</label><input id="phone" placeholder="10-digit mobile"></div>
+        <div><label>Email (for updates)</label><input id="email" type="email" placeholder="you@email.com"></div>
+      </div>
+      <div class="row cols-3">
+        <div><label>Location / landmark</label><input id="location" placeholder="e.g. Near City Hospital"></div>
+        <div><label>City</label><input id="city" placeholder="e.g. Pune"></div>
+        <div><label>PIN code</label><input id="pincode" placeholder="6-digit"></div>
+      </div>
+
+      <div style="margin-top:18px; display:flex; gap:10px; align-items:center">
+        <button class="btn" id="submitBtn" disabled>&#128229; Submit complaint</button>
+        <div id="submitMsg" class="msg" style="margin-top:0; flex:1"></div>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:20px">
+      <div class="card">
+        <h2 class="section">&#128203; Track your complaint</h2>
+        <p class="muted" style="font-size:.9rem">Use the tracking ID you received, e.g. <span class="mono">GRV-2026-0001</span></p>
+        <div style="display:flex; gap:8px; margin-top:12px">
+          <input id="trackInput" placeholder="GRV-2026-0001" style="font-family:Consolas,monospace">
+          <button class="btn ghost small" id="trackBtn" style="white-space:nowrap">Track</button>
+        </div>
+        <div id="trackMsg" class="msg"></div>
+        <div id="trackResult" style="margin-top:16px"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="section">&#127973; 15 departments on board</h2>
+        <div class="dept-grid" id="deptGrid"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="section">&#128172; What citizens say</h2>
+        <div class="testimonial">"I had no idea which department handled street lights. The site figured it out instantly and it got fixed in 3 days."<div class="who">— Ananya Iyer, Pune</div></div>
+        <div class="testimonial">"Got my tracking ID, followed every update. Finally a complaint system that doesn't bounce you around."<div class="who">— Mohd. Faiz, Jaipur</div></div>
+        <div class="testimonial">"The live prediction showing the department and confidence before I even submitted? Really cool."<div class="who">— Gurpreet Singh, Ludhiana</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- auth modal -->
+<div class="modal-back" id="authModal">
+  <div class="modal" style="max-width:420px">
+    <h3>&#128100; Citizen account</h3>
+    <p class="muted" style="font-size:.86rem">Sign in to keep your complaints linked to your account.</p>
+    <div class="tabs" style="margin-top:10px">
+      <button class="active" data-tab="login">Sign in</button>
+      <button data-tab="register">Create account</button>
+    </div>
+    <div id="tabLogin">
+      <label>Email or phone</label><input id="liIdentifier" placeholder="you@email.com or 98…">
+      <label>Password</label><input id="liPass" type="password">
+    </div>
+    <div id="tabRegister" style="display:none">
+      <label>Full name</label><input id="rgName" placeholder="Your name">
+      <div class="row cols-2">
+        <div><label>Email</label><input id="rgEmail" placeholder="you@email.com"></div>
+        <div><label>Phone</label><input id="rgPhone" placeholder="98…"></div>
+      </div>
+      <label>City</label><input id="rgCity" placeholder="Your city">
+      <label>Password</label><input id="rgPass" type="password">
+    </div>
+    <div id="authMsg" class="msg"></div>
+    <button class="btn" id="authSubmit" style="width:100%;margin-top:14px">Continue</button>
+  </div>
+</div>
+
+<footer>GrievancePath &middot; Built for Smart India Hackathon &middot; AI grievance routing system</footer>
+
+<script src="/static/js/common.js"></script>
+<script>
+const titleEl = document.getElementById("title");
+const descEl = document.getElementById("description");
+const box = document.getElementById("analysisBox");
+let authTab = "login";
+
+async function loadMeta() {
+  try {
+    const o = await api("/api/analytics/overview");
+    document.getElementById("heroTotal").textContent = o.total;
+    document.getElementById("heroDepts").textContent = o.departments;
+    document.getElementById("heroRating").textContent = o.feedback_count ? o.avg_rating + " ★" : "—";
+    const d = await api("/api/departments");
+    document.getElementById("deptGrid").innerHTML = d.map(x =>
+      `<div class="dg"><span class="sw" style="background:${esc(x.color)}"></span>${esc(x.name)}</div>`).join("");
+    document.getElementById("manualDept").innerHTML =
+      `<option value="">— Auto route (recommended) —</option>` +
+      d.map(x => `<option value="${esc(x.code)}">${esc(x.name)}</option>`).join("");
+  } catch (e) {}
+}
+
+async function runAnalysis() {
+  const title = titleEl.value.trim();
+  const description = descEl.value.trim();
+  const manual = document.getElementById("manualDept").value;
+  if (manual) {
+    const opt = document.getElementById("manualDept").selectedOptions[0];
+    box.innerHTML = `<div class="row-flex">
+      <span class="badge" style="background:#64748b">👤 ${esc(opt.text)}</span>
+      <span class="muted" style="font-size:.85rem">Manual selection — will skip auto-routing</span></div>`;
+    document.getElementById("submitBtn").disabled = false;
+    return;
+  }
+  if (!title && !description) {
+    box.innerHTML = '<div class="muted" style="font-size:.85rem">&#128269; Live analysis: start typing and we\'ll predict the department…</div>';
+    document.getElementById("submitBtn").disabled = true;
+    return;
+  }
+  box.innerHTML = '<div class="row-flex"><div class="spin"></div><div class="muted" style="font-size:.9rem">Analysing complaint…</div></div>';
+  try {
+    const r = await api("/api/analyze", { method: "POST", body: JSON.stringify({ title, description }) });
+    document.getElementById("submitBtn").disabled = !r.department_id;
+    if (!r.department_id) {
+      box.innerHTML = `<div class="muted" style="font-size:.9rem">⚠️ Could not route yet — add more detail, or use manual mode below.</div>`;
+      return;
+    }
+    const conf = Math.round((r.confidence || 0) * 100);
+    const kw = (r.matched_keywords || []).slice(0, 5).map(k => `<span class="chip">${esc(k)}</span>`).join("");
+    box.innerHTML = `
+      <div style="font-size:.8rem;color:var(--muted);font-weight:700">ROUTING ANALYSIS</div>
+      <div class="row-flex">
+        <span class="badge" style="background:var(--brand)">🏛 ${esc(r.department_name)}</span>
+        <span><strong>${conf}%</strong> confidence</span>
+        <span class="muted" style="font-size:.8rem">via ${esc(r.method)}</span>
+      </div>
+      ${kw ? `<div style="margin-top:8px">${kw}</div>` : ""}
+      <div class="muted" style="font-size:.82rem;margin-top:6px">${esc(r.explanation || "")}</div>`;
+  } catch (e) {
+    box.innerHTML = `<div style="color:var(--bad);font-size:.9rem">⚠️ ${esc(e.message)}</div>`;
+  }
+}
+
+titleEl.addEventListener("input", debounce(runAnalysis, 400));
+descEl.addEventListener("input", debounce(runAnalysis, 400));
+document.getElementById("manualDept").addEventListener("change", runAnalysis);
+
+document.getElementById("submitBtn").addEventListener("click", async () => {
+  const payload = {
+    title: titleEl.value.trim(),
+    description: descEl.value.trim(),
+    category: document.getElementById("category").value,
+    location: document.getElementById("location").value.trim(),
+    city: document.getElementById("city").value.trim(),
+    pincode: document.getElementById("pincode").value.trim(),
+    contact_name: document.getElementById("name").value.trim() || undefined,
+    contact_email: document.getElementById("email").value.trim() || undefined,
+    contact_phone: document.getElementById("phone").value.trim() || undefined,
+    manual_department_code: document.getElementById("manualDept").value || null,
+    manual_reason: document.getElementById("manualReason").value.trim(),
+  };
+  const msg = document.getElementById("submitMsg");
+  if (!payload.title || payload.description.length < 15) {
+    showMsg(msg, "Please fill the title and a description of at least 15 characters.", "err");
+    return;
+  }
+  const btn = document.getElementById("submitBtn");
+  btn.disabled = true; btn.textContent = "Submitting…";
+  try {
+    const r = await api("/api/complaints", { method: "POST", body: JSON.stringify(payload) });
+    showMsg(msg, r.message, "ok");
+    btn.textContent = "Submit complaint";
+    titleEl.value = ""; descEl.value = "";
+    document.getElementById("manualDept").value = ""; document.getElementById("manualReason").value = "";
+    box.innerHTML = "";
+    document.getElementById("trackInput").value = r.tracking_id;
+    document.getElementById("trackResult").innerHTML = "";
+    runAnalysis(); loadMeta();
+  } catch (e) {
+    showMsg(msg, e.message, "err");
+    btn.textContent = "Submit complaint"; btn.disabled = false;
+  }
+});
+
+document.getElementById("trackBtn").addEventListener("click", async () => {
+  const id = document.getElementById("trackInput").value.trim();
+  const msg = document.getElementById("trackMsg");
+  if (!id) return showMsg(msg, "Enter a tracking ID.", "err");
+  try {
+    const r = await api("/api/complaints/track?tracking_id=" + encodeURIComponent(id));
+    showMsg(msg, "", "ok"); msg.classList.remove("show");
+    document.getElementById("trackResult").innerHTML = renderTrack(r);
+  } catch (e) { showMsg(msg, e.message, "err"); }
+});
+
+function stepper(status) {
+  const order = ["PENDING", "IN_PROGRESS", "RESOLVED", "CLOSED"];
+  const idx = order.indexOf(status);
+  const states = order.map((s, i) =>
+    i < idx ? "done" : (i === idx ? "active" : "")).join("|");
+  return order.map((s, i) => `
+    <div class="st ${i < idx ? "done" : (i === idx ? "active" : "")}">
+      <div class="dot">${i < idx ? "✓" : i + 1}</div>
+      <div class="lab">${s.replace("_", " ")}</div>
+    </div>`).join("");
+}
+
+function renderTrack(r) {
+  const tl = (r.history || []).map(h => `
+    <li><div class="t-dot"></div><div class="t-body">
+      <div class="t-status">${statusPill(h.status)}</div>
+      <div class="t-note">${esc(h.note)}</div>
+      <div class="t-time">${fmtDate(h.created_at)} &middot; by ${esc(h.changed_by)}</div>
+    </div></li>`).join("");
+  const stars = r.avg_rating ? ` ${esc(r.avg_rating)} ★ (${r.feedback_count})` : "";
+  return `
+    <div class="card" style="padding:18px">
+      <div class="kv">
+        <span class="k">Tracking ID</span><span class="mono" style="font-weight:700">${esc(r.tracking_id)}</span>
+        <span class="k">Department</span>
+        <span class="badge" style="background:${esc(r.department.color)}">${esc(r.department.name)}</span>
+        <span class="k">Status</span>${statusPill(r.status)} ${priorityPill(r.priority)}
+      </div>
+      <div class="stepper">${stepper(r.status)}</div>
+      <div class="muted" style="font-size:.78rem;margin-top:6px">
+        Routed via ${esc(r.routing_method)} · ${Math.round((r.confidence||0)*100)}% confidence
+        · submitted ${fmtDate(r.created_at)}${r.sla_due_at ? " · SLA due " + fmtDate(r.sla_due_at) : ""}
+        ${stars ? " · Citizen rating" + stars : ""}
+      </div>
+      <div style="margin-top:12px"><strong>${esc(r.title)}</strong></div>
+      <div class="muted" style="font-size:.9rem;margin:4px 0 12px">${esc(r.description)}</div>
+
+      <ul class="timeline">${tl}</ul>
+
+      <div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+        <label>Rate this complaint's handling</label>
+        <div class="stars" id="starRow">
+          ${[1,2,3,4,5].map(n => `<label title="${n} star${n>1?"s":""}"><input type="radio" name="rating" value="${n}"><span>★</span></label>`).join("")}
+        </div>
+        <input id="fbComment" placeholder="Share your feedback (optional)" style="margin-top:8px">
+        <button class="btn ghost small" style="margin-top:8px" onclick="sendFeedback('${esc(r.tracking_id)}')">Submit feedback</button>
+        <div id="fbMsg" class="msg"></div>
+      </div>
+    </div>`;
+}
+
+async function sendFeedback(trackingId) {
+  const ratingEl = document.querySelector('input[name="rating"]:checked');
+  const fbMsg = document.getElementById("fbMsg");
+  if (!ratingEl) return showMsg(fbMsg, "Select a star rating first.", "err");
+  try {
+    const r = await api("/api/complaints/" + trackingId + "/feedback", {
+      method: "POST",
+      body: JSON.stringify({ rating: +ratingEl.value, comment: document.getElementById("fbComment").value.trim() }),
+    });
+    showMsg(fbMsg, r.message, "ok");
+    document.getElementById("fbComment").value = "";
+  } catch (e) { showMsg(fbMsg, e.message, "err"); }
+}
+
+/* ---- auth ---- */
+const authLink = document.getElementById("authLink");
+async function refreshAuth() {
+  if (!loggedIn()) {
+    authLink.style.display = "inline-block";
+    authLink.textContent = "Sign in";
+    authLink.onclick = e => { e.preventDefault(); openAuth(); };
+    document.getElementById("whoAmI").textContent = "";
+    return;
+  }
+  try {
+    const me = await api("/api/auth/me");
+    authLink.style.display = "inline-block";
+    authLink.textContent = "Sign out (" + esc(me.user.full_name.split(" ")[0]) + ")";
+    authLink.onclick = e => { e.preventDefault(); logout(); };
+    document.getElementById("whoAmI").textContent = "Signed in as " + me.user.full_name;
+    if (!document.getElementById("name").value) document.getElementById("name").value = me.user.full_name;
+  } catch { logout(); }
+}
+
+function openAuth() { document.getElementById("authModal").classList.add("show"); }
+
+document.querySelectorAll("#authModal .tabs button").forEach(b =>
+  b.addEventListener("click", () => {
+    document.querySelectorAll("#authModal .tabs button").forEach(x => x.classList.remove("active"));
+    b.classList.add("active");
+    authTab = b.dataset.tab;
+    document.getElementById("tabLogin").style.display = authTab === "login" ? "block" : "none";
+    document.getElementById("tabRegister").style.display = authTab === "register" ? "block" : "none";
+  }));
+
+document.getElementById("authSubmit").addEventListener("click", async () => {
+  const msg = document.getElementById("authMsg");
+  try {
+    let res;
+    if (authTab === "login") {
+      res = await api("/api/auth/login", { method: "POST", body: JSON.stringify({
+        identifier: document.getElementById("liIdentifier").value.trim(),
+        password: document.getElementById("liPass").value })});
+    } else {
+      res = await api("/api/auth/register", { method: "POST", body: JSON.stringify({
+        full_name: document.getElementById("rgName").value.trim(),
+        email: document.getElementById("rgEmail").value.trim(),
+        phone: document.getElementById("rgPhone").value.trim(),
+        city: document.getElementById("rgCity").value.trim(),
+        password: document.getElementById("rgPass").value })});
+      res = await api("/api/auth/login", { method: "POST", body: JSON.stringify({
+        identifier: document.getElementById("rgEmail").value.trim() || document.getElementById("rgPhone").value.trim(),
+        password: document.getElementById("rgPass").value })});
+    }
+    localStorage.setItem("gp_token", res.token);
+    localStorage.setItem("gp_role", "citizen");
+    document.getElementById("authModal").classList.remove("show");
+    refreshAuth();
+  } catch (e) { showMsg(msg, e.message, "err"); }
+});
+
+document.getElementById("openAuth").addEventListener("click", openAuth);
+
+loadMeta();
+refreshAuth();
+</script>
+</body>
+</html>

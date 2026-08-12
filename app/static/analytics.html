@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GrievancePath — Analytics</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="logo"><span class="dot">&#9873;</span> GrievancePath <span class="pill" style="margin-left:4px">Analytics</span></div>
+  <div class="links">
+    <a href="/">Citizen Portal</a>
+    <a href="/department">Departments</a>
+    <a href="/admin">Admin</a>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="hero">
+    <h1 class="gradient-text">Grievance analytics</h1>
+    <p>How complaints are flowing through departments and getting resolved.</p>
+  </div>
+
+  <div class="grid cols-3" style="margin-top:22px">
+    <div class="card stat"><div class="num" id="sTotal">–</div><div class="lbl">Total complaints</div></div>
+    <div class="card stat"><div class="num" id="sActive">–</div><div class="lbl">Active</div></div>
+    <div class="card stat"><div class="num" id="sResolved">–</div><div class="lbl">Resolved</div></div>
+  </div>
+  <div class="grid cols-4" style="margin-top:20px">
+    <div class="card stat"><div class="num" id="sRate">–</div><div class="lbl">Resolution rate</div></div>
+    <div class="card stat"><div class="num" id="sUsers">–</div><div class="lbl">Registered citizens</div></div>
+    <div class="card stat"><div class="num" id="sFb">–</div><div class="lbl">Feedback given</div></div>
+    <div class="card stat"><div class="num" id="sAvg">–</div><div class="lbl">Avg rating</div></div>
+  </div>
+
+  <div class="grid cols-2" style="margin-top:20px">
+    <div class="card">
+      <h2 class="section">&#128202; Complaints by department</h2>
+      <div id="deptBars"></div>
+    </div>
+    <div class="card">
+      <h2 class="section">&#128201; Status breakdown</h2>
+      <div class="donut-wrap" id="donutWrap"></div>
+    </div>
+  </div>
+
+  <div class="grid cols-2" style="margin-top:20px">
+    <div class="card">
+      <h2 class="section">&#128200; Last 14 days</h2>
+      <canvas id="trendChart" height="220"></canvas>
+    </div>
+    <div class="card">
+      <h2 class="section">&#128213; Priority mix</h2>
+      <div id="priorityBars"></div>
+      <h2 class="section" style="margin-top:22px">&#129302; Routing method</h2>
+      <div id="routeRows"></div>
+    </div>
+  </div>
+</div>
+
+<footer>GrievancePath &middot; Smart India Hackathon</footer>
+
+<script src="/static/js/common.js"></script>
+<script>
+const STATUS_COLORS = {
+  PENDING: "#f59e0b", IN_PROGRESS: "#3b82f6",
+  RESOLVED: "#22c55e", REJECTED: "#ef4444", CLOSED: "#94a3b8",
+};
+
+async function load() {
+  const [ov, depts, status, prio, trend, route] = await Promise.all([
+    api("/api/analytics/overview"),
+    api("/api/analytics/departments"),
+    api("/api/analytics/status"),
+    api("/api/analytics/priority"),
+    api("/api/analytics/trend?days=14"),
+    api("/api/analytics/routing"),
+  ]);
+
+  document.getElementById("sTotal").textContent = ov.total;
+  document.getElementById("sActive").textContent = ov.pending;
+  document.getElementById("sResolved").textContent = ov.resolved;
+  document.getElementById("sRate").textContent = ov.resolution_rate + "%";
+  document.getElementById("sUsers").textContent = ov.users;
+  document.getElementById("sFb").textContent = ov.feedback_count;
+  document.getElementById("sAvg").textContent = ov.feedback_count ? ov.avg_rating + " ★" : "—";
+
+  renderDeptBars(depts.rows);
+  renderDonut(status.rows);
+  renderPrio(prio.rows);
+  renderRoute(route.rows);
+  renderTrend(trend.rows);
+}
+
+function renderDeptBars(rows) {
+  const max = Math.max(1, ...rows.map(r => r.total));
+  document.getElementById("deptBars").innerHTML = rows.map(r => `
+    <div class="bar-row">
+      <span style="font-weight:600">${esc(r.code)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${(r.total/max*100)}%; background:${esc(r.color)}"></div></div>
+      <span class="mono" style="text-align:right">${r.total}</span>
+    </div>`).join("");
+}
+
+function renderDonut(rows) {
+  const total = rows.reduce((s, r) => s + r.total, 0) || 1;
+  let acc = 0;
+  const stops = rows.map(r => {
+    const from = acc; acc += r.total / total * 360;
+    return `${STATUS_COLORS[r.status] || "#64748b"} ${from}deg ${acc}deg`;
+  }).join(", ");
+  const legend = rows.map(r => `
+    <div class="lg"><span class="sw" style="background:${STATUS_COLORS[r.status] || "#64748b"}"></span>
+    ${esc(r.status)} — ${r.total}</div>`).join("");
+  document.getElementById("donutWrap").innerHTML = `
+    <div style="width:150px;height:150px;border-radius:50%;background:conic-gradient(${stops})"></div>
+    <div class="legend">${legend}</div>`;
+}
+
+function renderPrio(rows) {
+  const max = Math.max(1, ...rows.map(r => r.total));
+  const colors = { LOW: "#6366f1", MEDIUM: "#f59e0b", HIGH: "#f97316", URGENT: "#dc2626" };
+  document.getElementById("priorityBars").innerHTML = rows.map(r => `
+    <div class="bar-row">
+      <span style="font-weight:600">${esc(r.priority)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${(r.total/max*100)}%; background:${colors[r.priority] || "#64748b"}"></div></div>
+      <span class="mono" style="text-align:right">${r.total}</span>
+    </div>`).join("");
+}
+
+function renderRoute(rows) {
+  const total = rows.reduce((s, r) => s + r.total, 0) || 1;
+  document.getElementById("routeRows").innerHTML = rows.map(r => `
+    <div class="bar-row">
+      <span style="font-weight:600">${esc(r.routing_method)}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${(r.total/total*100)}%; background:var(--brand)"></div></div>
+      <span class="mono" style="text-align:right">${Math.round(r.total/total*100)}%</span>
+    </div>`).join("");
+}
+
+function renderTrend(rows) {
+  const canvas = document.getElementById("trendChart");
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = 220;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  const max = Math.max(1, ...rows.map(r => r.total));
+  const padL = 30, padR = 10, padT = 14, padB = 26;
+  const cw = W - padL - padR, ch = H - padT - padB;
+  const n = rows.length;
+  const px = i => padL + (n === 1 ? cw / 2 : i * cw / (n - 1));
+  const py = v => padT + ch - (v / max) * ch;
+
+  // grid
+  ctx.strokeStyle = "#e2e8f0"; ctx.fillStyle = "#94a3b8"; ctx.font = "11px sans-serif";
+  ctx.lineWidth = 1;
+  for (let g = 0; g <= 4; g++) {
+    const y = padT + ch * g / 4;
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+    ctx.fillText(Math.round(max * (1 - g / 4)), 2, y + 4);
+  }
+
+  // line + area
+  ctx.beginPath();
+  ctx.moveTo(px(0), py(rows[0].total));
+  rows.forEach((r, i) => ctx.lineTo(px(i), py(r.total)));
+  ctx.strokeStyle = "#4f46e5"; ctx.lineWidth = 2.5; ctx.stroke();
+
+  ctx.lineTo(px(n - 1), padT + ch); ctx.lineTo(px(0), padT + ch); ctx.closePath();
+  const grad = ctx.createLinearGradient(0, padT, 0, padT + ch);
+  grad.addColorStop(0, "rgba(79,70,229,.25)"); grad.addColorStop(1, "rgba(79,70,229,0)");
+  ctx.fillStyle = grad; ctx.fill();
+
+  // dots + labels
+  rows.forEach((r, i) => {
+    ctx.beginPath(); ctx.arc(px(i), py(r.total), 3.5, 0, Math.PI * 2);
+    ctx.fillStyle = "#4f46e5"; ctx.fill();
+    if (i % 2 === 0) {
+      ctx.fillStyle = "#94a3b8";
+      ctx.fillText(String(r.day).slice(5), px(i) - 14, H - 8);
+    }
+  });
+}
+
+load();
+</script>
+</body>
+</html>
